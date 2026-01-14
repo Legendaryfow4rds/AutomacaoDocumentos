@@ -3,20 +3,20 @@ package BancadaDeTestes;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import java.io.File;
-import java.io.IOException;
 
 public class ProcessadorPDF {
 
-    public static boolean extrairRelatorioCompleto(ClienteDTO cliente, String caminhoPdfBase) {
+    public static String extrairPorCnpj(ClienteDTO cliente, String caminhoPdfBase, String pastaDestino) {
         File fileBase = new File(caminhoPdfBase);
-        if (!fileBase.exists()) return false;
+        if (!fileBase.exists()) return "ERRO: Arquivo base não encontrado";
 
         try (PDDocument docBase = PDDocument.load(fileBase);
              PDDocument novoDoc = new PDDocument()) {
 
             PDFTextStripper stripper = new PDFTextStripper();
-            String cnpjLimpo = cliente.getCnpj().replaceAll("[^0-9]", "");
-            String nomeCliente = cliente.getNome().toUpperCase();
+            String cnpjAlvo = cliente.getCnpjApenasNumeros();
+
+            if (cnpjAlvo.isEmpty()) return "ERRO: CNPJ vazio na planilha";
 
             boolean capturando = false;
             boolean encontrouFim = false;
@@ -24,25 +24,21 @@ public class ProcessadorPDF {
             for (int p = 0; p < docBase.getNumberOfPages(); p++) {
                 stripper.setStartPage(p + 1);
                 stripper.setEndPage(p + 1);
-                String textoPagina = stripper.getText(docBase).toUpperCase();
 
-                // 1. Identifica se o cliente está nesta página
-                boolean temCliente = textoPagina.contains(nomeCliente) || textoPagina.contains(cnpjLimpo);
+                String textoOriginal = stripper.getText(docBase);
+                // Removemos TUDO que não for letra ou número para a busca ficar imune a espaços/pontos
+                String textoNormalizado = textoOriginal.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
 
-                // 2. Identifica se é a página de fechamento
-                boolean temTotal = textoPagina.contains("TOTAL DO TOMADOR");
-
-                // LOGICA DE CAPTURA:
-                // Se encontramos o cliente, começamos a capturar as páginas.
-                if (temCliente) {
+                // 1. Procura o CNPJ (sem pontos/traços) dentro do texto normalizado
+                if (textoNormalizado.contains(cnpjAlvo)) {
                     capturando = true;
                 }
 
                 if (capturando) {
                     novoDoc.importPage(docBase.getPage(p));
 
-                    // Se além de ter o cliente, encontramos o "Total do Tomador", encerramos aqui.
-                    if (temTotal) {
+                    // 2. Procura a âncora de encerramento
+                    if (textoNormalizado.contains("TOTALDOTOMADOR")) {
                         encontrouFim = true;
                         break;
                     }
@@ -50,17 +46,18 @@ public class ProcessadorPDF {
             }
 
             if (encontrouFim) {
-                String prefixo = cliente.getTipo().toUpperCase().contains("SERVIÇO") ? "SERV." : "Vig.";
-                String nomeSanitizado = cliente.getNome().replaceAll("[^a-zA-Z0-9]", "_");
-                String nomeFinal = prefixo + " Relatório FGTS - 11.2025 - " + nomeSanitizado + ".pdf";
+                String prefixo = cliente.getTipo().toUpperCase().contains("SERV") ? "SERV." : "Vig.";
+                String nomeLimpo = cliente.getNome().replaceAll("[^a-zA-Z0-9]", "_");
+                String nomeFinal = prefixo + " Relatório FGTS - " + nomeLimpo + ".pdf";
 
-                novoDoc.save(nomeFinal);
-                return true;
+                File arquivoSalvo = new File(pastaDestino, nomeFinal);
+                novoDoc.save(arquivoSalvo);
+                return "OK:" + nomeFinal;
             }
 
-        } catch (IOException e) {
-            System.err.println("❌ Erro ao processar PDF do cliente " + cliente.getNome() + ": " + e.getMessage());
+        } catch (Exception e) {
+            return "ERRO TECNICO: " + e.getMessage();
         }
-        return false;
+        return "ERRO: CNPJ " + cliente.getCnpj() + " não localizado ou sem 'Total do Tomador'";
     }
 }
