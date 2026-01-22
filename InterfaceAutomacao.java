@@ -2,6 +2,8 @@ package BancadaDeTestes;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
 
 public class InterfaceAutomacao extends JFrame {
@@ -11,73 +13,85 @@ public class InterfaceAutomacao extends JFrame {
 
     public InterfaceAutomacao() {
         setTitle("Gocil - Extrator FGTS Digital (Painel Administrativo)");
-
-        // --- AJUSTE DE DIMENSÃO (Mais largo e menos alto) ---
-        setSize(1000, 600);
+        setSize(900, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new BorderLayout(20, 20));
-        getContentPane().setBackground(new Color(245, 245, 245));
+        setLayout(new BorderLayout(0, 0));
 
-        // --- PAINEL DE SELEÇÃO (Esticado para as laterais) ---
-        JPanel painelInputs = new JPanel(new GridLayout(4, 1, 15, 15));
-        painelInputs.setBorder(new EmptyBorder(30, 40, 10, 40)); // Margens laterais maiores
-        painelInputs.setOpaque(false);
+        // Fundo Totalmente Branco
+        getContentPane().setBackground(Color.WHITE);
 
-        txtPlanilha = criarCampoSelecao(painelInputs, "Planilha Excel:", false);
-        txtPdfVig = criarCampoSelecao(painelInputs, "PDF Vigilância:", false);
-        txtPdfServ = criarCampoSelecao(painelInputs, "PDF Serviço:", false);
-        txtDrive = criarCampoSelecao(painelInputs, "Pasta do Drive:", true);
+        // --- PAINEL SUPERIOR (SELEÇÃO) ---
+        JPanel painelInputs = new JPanel(new GridLayout(4, 1, 12, 12));
+        painelInputs.setBackground(Color.WHITE);
+        painelInputs.setBorder(new EmptyBorder(30, 50, 20, 50));
 
-        // --- ÁREA DE RELATÓRIO (FUNDO BRANCO) ---
+        txtPlanilha = criarCampoEstiloWindows(painelInputs, "Planilha Excel:", false);
+        txtPdfVig = criarCampoEstiloWindows(painelInputs, "PDF Vigilância:", false);
+        txtPdfServ = criarCampoEstiloWindows(painelInputs, "PDF Serviço:", false);
+        txtDrive = criarCampoEstiloWindows(painelInputs, "Pasta do Drive:", true);
+
+        // --- PAINEL CENTRAL (LOG) ---
         areaLog = new JTextArea();
-        areaLog.setBackground(Color.WHITE);
+        areaLog.setBackground(new Color(252, 252, 252)); // Quase branco para o log
         areaLog.setForeground(Color.BLACK);
-        areaLog.setFont(new Font("Consolas", Font.PLAIN, 14));
+        areaLog.setFont(new Font("Consolas", Font.PLAIN, 13));
         areaLog.setEditable(false);
-        areaLog.setMargin(new Insets(15, 15, 15, 15));
 
         JScrollPane scroll = new JScrollPane(areaLog);
-        scroll.setBorder(BorderFactory.createTitledBorder("Relatório de Processamento em Tempo Real"));
+        // Borda com título elegante
+        TitledBorder bordaLog = BorderFactory.createTitledBorder(
+                new LineBorder(new Color(0, 0, 0), 2), " Status do Processamento ");
+        bordaLog.setTitleFont(new Font("Segoe UI", Font.BOLD, 12));
+        scroll.setBorder(bordaLog);
 
-        // --- PAINEL DO BOTÃO (Para centralizar o INICIAR com margens) ---
-        JPanel painelBotao = new JPanel(new BorderLayout());
-        painelBotao.setOpaque(false);
-        painelBotao.setBorder(new EmptyBorder(0, 40, 30, 40));
+        JPanel painelCentral = new JPanel(new BorderLayout());
+        painelCentral.setBackground(Color.WHITE);
+        painelCentral.setBorder(new EmptyBorder(0, 50, 10, 50));
+        painelCentral.add(scroll, BorderLayout.CENTER);
 
-        btnIniciar = new JButton("INICIAR");
-        btnIniciar.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        btnIniciar.setPreferredSize(new Dimension(0, 65));
-        btnIniciar.setBackground(Color.BLACK);
+        // --- PAINEL INFERIOR (BOTÃO VERDE) ---
+        JPanel painelBotao = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        painelBotao.setBackground(Color.WHITE);
+        painelBotao.setBorder(new EmptyBorder(10, 0, 35, 0));
+
+        btnIniciar = new JButton("INICIAR PROCESSO");
+        btnIniciar.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        btnIniciar.setPreferredSize(new Dimension(280, 50));
+        btnIniciar.setBackground(new Color(39, 174, 96)); // Verde Esmeralda
         btnIniciar.setForeground(Color.WHITE);
-        btnIniciar.setOpaque(true);
-        btnIniciar.setBorderPainted(false);
         btnIniciar.setFocusPainted(false);
+        btnIniciar.setBorderPainted(false);
         btnIniciar.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
         btnIniciar.addActionListener(e -> dispararProcesso());
-        painelBotao.add(btnIniciar, BorderLayout.CENTER);
+        painelBotao.add(btnIniciar);
 
-        // Adicionando ao Frame
         add(painelInputs, BorderLayout.NORTH);
-        add(scroll, BorderLayout.CENTER);
+        add(painelCentral, BorderLayout.CENTER);
         add(painelBotao, BorderLayout.SOUTH);
 
         setLocationRelativeTo(null);
     }
 
-    private JTextField criarCampoSelecao(JPanel pai, String rotulo, boolean apenasPasta) {
+    private JTextField criarCampoEstiloWindows(JPanel pai, String rotulo, boolean apenasPasta) {
         JPanel linha = new JPanel(new BorderLayout(15, 0));
         linha.setOpaque(false);
 
         JLabel lbl = new JLabel(rotulo);
         lbl.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        lbl.setPreferredSize(new Dimension(160, 25));
+        lbl.setPreferredSize(new Dimension(130, 25));
 
         JTextField campo = new JTextField();
-        campo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        campo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        campo.setBackground(new Color(248, 249, 250)); // Cinza ultra claro (estilo Explorer)
+        campo.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(new Color(200, 200, 200), 1),
+                new EmptyBorder(5, 10, 5, 10)
+        ));
 
-        JButton btn = new JButton("Selecionar");
-        btn.setPreferredSize(new Dimension(110, 25));
+        JButton btn = new JButton("Procurar");
+        btn.setFocusPainted(false);
+        btn.setBackground(new Color(240, 240, 240));
 
         btn.addActionListener(e -> {
             JFileChooser buscador = new JFileChooser();
@@ -96,34 +110,34 @@ public class InterfaceAutomacao extends JFrame {
 
     private void dispararProcesso() {
         if (txtPlanilha.getText().isEmpty() || txtDrive.getText().isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Atenção: Selecione os arquivos e o destino antes de iniciar.");
+            JOptionPane.showMessageDialog(this, "Por favor, selecione os caminhos.");
             return;
         }
 
         btnIniciar.setEnabled(false);
         btnIniciar.setText("PROCESSANDO...");
-        areaLog.setText("🚀 [SISTEMA] Iniciando extração e sincronização...\n");
+        btnIniciar.setBackground(Color.LIGHT_GRAY);
+        areaLog.setText("⌛ Aguardando inicialização dos motores...\n");
 
         new Thread(() -> {
             try {
                 AutomacaoPrincipalV4.executarComParametros(
-                        txtPlanilha.getText(),
-                        txtPdfVig.getText(),
-                        txtPdfServ.getText(),
-                        txtDrive.getText(),
-                        areaLog
+                        txtPlanilha.getText(), txtPdfVig.getText(), txtPdfServ.getText(), txtDrive.getText(), areaLog
                 );
             } catch (Exception ex) {
-                areaLog.append("\n❌ ERRO: " + ex.getMessage());
+                areaLog.append("\n❌ ERRO CRÍTICO: " + ex.getMessage());
             } finally {
-                btnIniciar.setEnabled(true);
-                btnIniciar.setText("INICIAR");
+                SwingUtilities.invokeLater(() -> {
+                    btnIniciar.setEnabled(true);
+                    btnIniciar.setText("INICIAR PROCESSO");
+                    btnIniciar.setBackground(new Color(39, 174, 96));
+                });
             }
         }).start();
     }
 
     public static void main(String[] args) {
-        try { UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName()); } catch (Exception e) {}
+        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception e) {}
         SwingUtilities.invokeLater(() -> new InterfaceAutomacao().setVisible(true));
     }
 }
