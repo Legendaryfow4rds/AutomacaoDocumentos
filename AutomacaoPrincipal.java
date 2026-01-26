@@ -4,101 +4,94 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import javax.swing.JTextArea;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 
 public class AutomacaoPrincipalV4 {
 
     public static void executarComParametros(String planilha, String vig, String serv, String drive, JTextArea log) {
-        int sucessos = 0;
-        int erros = 0;
-
-        File pastaBase = new File(vig).getParentFile();
+        int contadorSucessos = 0;
+        List<String> falhasDetalhadas = new ArrayList<>();
+        File pastaMestres = new File(vig).getParentFile();
 
         try (Workbook workbook = WorkbookFactory.create(new File(planilha))) {
             List<ClienteDTO> clientes = LeitorPlanilha.lerDados(workbook);
-            escrever(log, "📊 Iniciando processamento de " + clientes.size() + " clientes.");
+            log.append("🚀 Iniciando processamento de " + clientes.size() + " registros...\n\n");
 
             for (ClienteDTO c : clientes) {
-                boolean eServico = c.getTipo().toUpperCase().contains("SERV");
+                try {
+                    String nomeLimpo = c.getNome().replaceAll("[\\\\/:*?\"<>|]", " ").trim();
+                    boolean ehServico = c.getTipo().toUpperCase().contains("SERV");
+                    String pdfMestre = ehServico ? serv : vig;
 
-                // 1. Identifica qual PDF mestre usar (VIG ou SERV)
-                String pdfMestreCaminho = eServico ? serv : vig;
-                File arquivoMestre = new File(pdfMestreCaminho);
-                String nomeMestre = arquivoMestre.getName().toUpperCase();
+                    String cnpjGocil = DicionarioFiliais.obterCnpjCorreto(c.getMatrizFilial(), c.getTipo());
 
-                // 2. Lógica de Detecção de Estado (ex: BA)
-                // Se o nome do PDF mestre contém "BA", a busca do comprovante também usará "BA"
-                String sufixoEstado = nomeMestre.contains("BA") ? "BA" : "";
-                String termoServico = eServico ? "SERV" : "VIG";
+                    if (cnpjGocil.isEmpty()) {
+                        String erro = "Filial '" + c.getMatrizFilial() + "' não mapeada no Dicionário.";
+                        log.append("⚠️ " + nomeLimpo + ": " + erro + "\n");
+                        falhasDetalhadas.add(nomeLimpo + " [" + c.getMatrizFilial() + "] -> " + erro);
+                        continue;
+                    }
 
-                // 3. Busca o Comprovante que casa com o Tipo E com o Estado
-                String caminhoComprovante = localizarComprovanteInteligente(pastaBase, termoServico, sufixoEstado);
+                    String subPastaTipo = ehServico ? "SERVIÇO" : "VIGILÂNCIA";
+                    String caminhoFinalDestino = drive + File.separator + nomeLimpo +
+                            File.separator + c.getCompetencia() +
+                            File.separator + subPastaTipo;
 
-                String pastaDestino = GerenciadorArquivos.obterCaminhoDestino(c, drive);
+                    String resultado = ProcessadorPDF.extrairPorCnpj(c, cnpjGocil, pdfMestre, caminhoFinalDestino);
 
-                escrever(log, "• Processando: " + c.getNome() + (sufixoEstado.isEmpty() ? "" : " [" + sufixoEstado + "]"));
+                    if (resultado.equals("OK")) {
+                        boolean ehBahia = c.getMatrizFilial().toUpperCase().contains("BAHIA");
+                        String termo = ehServico ? "SERV" : "VIG";
+                        String guia = localizarGuia(pastaMestres, termo, ehBahia ? "BA" : "");
 
-                // 4. Copia o Comprovante (Se encontrado)
-                if (caminhoComprovante != null) {
-                    GerenciadorArquivos.copiarArquivo(caminhoComprovante, pastaDestino);
-                } else {
-                    escrever(log, "  ⚠️ Alerta: Comprovante " + termoServico + " " + sufixoEstado + " não encontrado.");
-                }
+                        if (guia != null) {
+                            GerenciadorArquivos.copiarArquivo(guia, caminhoFinalDestino);
+                        }
 
-                // 5. Extração do PDF Individual
-                String res = ProcessadorPDF.extrairPorCnpj(c, pdfMestreCaminho, pastaDestino);
+                        log.append("✅ " + nomeLimpo + " [" + c.getMatrizFilial() + "] - Processado.\n");
+                        contadorSucessos++;
+                    } else {
+                        log.append("❌ " + nomeLimpo + " [" + c.getMatrizFilial() + "] - " + resultado + "\n");
+                        falhasDetalhadas.add(nomeLimpo + " [" + c.getMatrizFilial() + "] -> " + resultado);
+                    }
 
-                if (res.startsWith("OK:")) {
-                    escrever(log, "  ✅ Kit " + (sufixoEstado.isEmpty() ? "Padrão" : sufixoEstado) + " arquivado.");
-                    sucessos++;
-                } else {
-                    escrever(log, "  ❌ Erro: " + res);
-                    erros++;
+                } catch (Exception ex) {
+                    falhasDetalhadas.add(c.getNome() + " -> ERRO: " + ex.getMessage());
                 }
             }
-            escrever(log, "\n========================================");
-            escrever(log, "🏁 FINALIZADO: " + sucessos + " Sucessos.");
-            escrever(log, "========================================");
+
+            // --- RELATÓRIO FINAL ---
+            log.append("\n" + "=".repeat(40) + "\n");
+            log.append("       RESUMO DA EXECUÇÃO\n");
+            log.append("=".repeat(40) + "\n");
+            log.append(String.format("✅ SUCESSOS: %d\n", contadorSucessos));
+            log.append(String.format("❌ FALHAS:   %d\n", falhasDetalhadas.size()));
+            log.append("=".repeat(40) + "\n");
+
+            if (!falhasDetalhadas.isEmpty()) {
+                log.append("\nDETALHAMENTO DAS FALHAS:\n");
+                for (String falha : falhasDetalhadas) {
+                    log.append("• " + falha + "\n");
+                }
+                log.append("=".repeat(40) + "\n");
+            }
 
         } catch (Exception e) {
-            escrever(log, "❌ ERRO: " + e.getMessage());
+            log.append("🚨 ERRO CRÍTICO: " + e.getMessage() + "\n");
         }
     }
 
-    /**
-     * Localiza o comprovante baseado no tipo (SERV/VIG) e na presença ou não do estado (BA)
-     */
-    private static String localizarComprovanteInteligente(File pasta, String tipo, String estado) {
-        File[] arquivos = pasta.listFiles();
-        if (arquivos != null) {
-            for (File f : arquivos) {
-                String nome = f.getName().toUpperCase();
-
-                boolean ehPdf = nome.endsWith(".PDF");
-                boolean ehGuia = nome.contains("GUIA") && nome.contains("COMPROV");
-                boolean ehTipo = nome.contains(tipo.toUpperCase());
-
-                // Se 'estado' for "BA", o arquivo PRECISA conter "BA".
-                // Se 'estado' for vazio, o arquivo NÃO DEVE conter "BA" (para não pegar o errado).
-                boolean condicaoEstado;
-                if (!estado.isEmpty()) {
-                    condicaoEstado = nome.contains(estado.toUpperCase());
-                } else {
-                    condicaoEstado = !nome.contains("BA"); // Evita pegar o da Bahia no fluxo padrão
-                }
-
-                if (ehPdf && ehGuia && ehTipo && condicaoEstado) {
-                    return f.getAbsolutePath();
-                }
+    private static String localizarGuia(File pasta, String tipo, String estado) {
+        File[] files = pasta.listFiles();
+        if (files == null) return null;
+        for (File f : files) {
+            String n = f.getName().toUpperCase();
+            if (n.contains("GUIA") && n.contains(tipo)) {
+                if (!estado.isEmpty() && n.contains(estado)) return f.getAbsolutePath();
+                if (estado.isEmpty() && !n.contains(" BA")) return f.getAbsolutePath();
             }
         }
         return null;
-    }
-
-    private static void escrever(JTextArea log, String txt) {
-        if (log != null) {
-            log.append(txt + "\n");
-            log.setCaretPosition(log.getDocument().getLength());
-        }
     }
 }
