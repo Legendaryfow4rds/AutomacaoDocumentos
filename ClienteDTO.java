@@ -4,21 +4,20 @@ public class ClienteDTO {
     private String nome;
     private String tipo;
     private String cnpj;
-    private String competencia; // Ex: 01.2025
+    private String competencia;
+    private String matrizFilial;
     private int linhaPlanilha;
 
     public String getNome() { return nome; }
     public void setNome(String nome) { this.nome = nome; }
-
     public String getTipo() { return tipo; }
     public void setTipo(String tipo) { this.tipo = tipo; }
-
     public String getCnpj() { return cnpj; }
     public void setCnpj(String cnpj) { this.cnpj = cnpj; }
-
     public String getCompetencia() { return competencia; }
     public void setCompetencia(String competencia) { this.competencia = competencia; }
-
+    public String getMatrizFilial() { return matrizFilial; }
+    public void setMatrizFilial(String matrizFilial) { this.matrizFilial = matrizFilial; }
     public int getLinhaPlanilha() { return linhaPlanilha; }
     public void setLinhaPlanilha(int linhaPlanilha) { this.linhaPlanilha = linhaPlanilha; }
 
