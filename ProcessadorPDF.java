@@ -5,8 +5,7 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import java.io.File;
 
 public class ProcessadorPDF {
-
-    public static String extrairPorCnpj(ClienteDTO cliente, String caminhoPdfBase, String pastaDestino) {
+    public static String extrairPorCnpj(ClienteDTO cliente, String cnpjGocil, String caminhoPdfBase, String pastaDestino) {
         File fileBase = new File(caminhoPdfBase);
         if (!fileBase.exists()) return "ERRO: Base PDF não encontrada";
 
@@ -22,15 +21,16 @@ public class ProcessadorPDF {
                 stripper.setStartPage(p + 1);
                 stripper.setEndPage(p + 1);
 
-                String textoNormalizado = stripper.getText(docBase).replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+                String textoPagina = stripper.getText(docBase);
+                String numerosPagina = textoPagina.replaceAll("[^0-9]", "");
 
-                if (textoNormalizado.contains(cnpjAlvo)) {
+                if (numerosPagina.contains(cnpjGocil) && numerosPagina.contains(cnpjAlvo)) {
                     capturando = true;
                 }
 
                 if (capturando) {
                     novoDoc.importPage(docBase.getPage(p));
-                    if (textoNormalizado.contains("TOTALDOTOMADOR")) {
+                    if (textoPagina.toUpperCase().replaceAll("\\s", "").contains("TOTALDOTOMADOR")) {
                         encontrouFim = true;
                         break;
                     }
@@ -38,29 +38,26 @@ public class ProcessadorPDF {
             }
 
             if (encontrouFim) {
-                String prefixo = cliente.getTipo().toUpperCase().contains("SERV") ? "SERV." : "VIG.";
-                String nomeLimpo = cliente.getNome().replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+                File pasta = new File(pastaDestino);
+                if (!pasta.exists()) pasta.mkdirs();
 
-                // Formatação: SERV. Relatório FGTS - Nome do cliente - CNPJ - COMPETENCIA
-                String nomeFinal = prefixo + " Relatório FGTS - " + nomeLimpo + " - " +
-                        cnpjAlvo + " - " + cliente.getCompetencia() + ".pdf";
+                String prefixo = cliente.getTipo().toUpperCase().contains("SERV") ? "SERV." : "VIG.";
+
+                // RESTAURADO: Nome completo com Filial e CNPJ
+                String nomeFinal = String.format("%s Relatório FGTS - %s - %s - %s - %s.pdf",
+                        prefixo,
+                        cliente.getNome().replaceAll("[\\\\/:*?\"<>|]", " "),
+                        cliente.getMatrizFilial(),
+                        cnpjAlvo,
+                        cliente.getCompetencia());
 
                 File arquivoSalvo = new File(pastaDestino, nomeFinal);
-
-                // Contador caso existam dois registros idênticos para a mesma competência
-                int cont = 1;
-                while (arquivoSalvo.exists()) {
-                    String nomeAlt = nomeFinal.replace(".pdf", " (" + cont + ").pdf");
-                    arquivoSalvo = new File(pastaDestino, nomeAlt);
-                    cont++;
-                }
-
                 novoDoc.save(arquivoSalvo);
-                return "OK:" + arquivoSalvo.getName();
+                return "OK";
             }
+            return "NÃO LOCALIZADO NO PDF";
         } catch (Exception e) {
-            return "ERRO: " + e.getMessage();
+            return "ERRO TÉCNICO: " + e.getMessage();
         }
-        return "ERRO: CNPJ não encontrado";
     }
 }
