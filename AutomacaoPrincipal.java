@@ -1,90 +1,138 @@
 package BancadaDeTestes;
 
+import javafx.application.Platform;
+import javafx.scene.control.TextArea;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
-import javax.swing.JTextArea;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AutomacaoPrincipalV4 {
+public class AutomacaoPrincipalV7 {
 
-    public static void executarComParametros(String planilha, String vig, String serv, String drive, JTextArea log) {
+    public static volatile boolean cancelarProcesso = false;
+
+    public static void executarComParametros(String planilha, String vig, String serv, String drive, TextArea log) {
+        cancelarProcesso = false;
         int contadorSucessos = 0;
         List<String> falhasDetalhadas = new ArrayList<>();
-        File pastaMestres = new File(vig).getParentFile();
+
+        // Pasta onde estão os PDFs mestres para buscar as Guias
+        File arquivoReferencia = new File(vig.isEmpty() ? serv : vig);
+        File pastaMestres = arquivoReferencia.getParentFile();
 
         try (Workbook workbook = WorkbookFactory.create(new File(planilha))) {
             List<ClienteDTO> clientes = LeitorPlanilha.lerDados(workbook);
-            log.append("🚀 Iniciando processamento de " + clientes.size() + " registros...\n\n");
+
+            updateLog(log, "🚀 Iniciando processamento de " + clientes.size() + " registros...\n\n");
 
             for (ClienteDTO c : clientes) {
+                if (cancelarProcesso) {
+                    updateLog(log, "\n🛑 PROCESSO INTERROMPIDO PELO USUÁRIO.\n");
+                    break;
+                }
+
                 try {
                     String nomeLimpo = c.getNome().replaceAll("[\\\\/:*?\"<>|]", " ").trim();
                     boolean ehServico = c.getTipo().toUpperCase().contains("SERV");
                     String pdfMestre = ehServico ? serv : vig;
 
+                    // 1. Busca o CNPJ da Gocil (Filial) para localizar no PDF Mestre
                     String cnpjGocil = DicionarioFiliais.obterCnpjCorreto(c.getMatrizFilial(), c.getTipo());
 
                     if (cnpjGocil.isEmpty()) {
-                        String erro = "Filial '" + c.getMatrizFilial() + "' não mapeada no Dicionário.";
-                        log.append("⚠️ " + nomeLimpo + ": " + erro + "\n");
-                        falhasDetalhadas.add(nomeLimpo + " [" + c.getMatrizFilial() + "] -> " + erro);
+                        String erro = String.format("❌ %s (Linha %d): Filial '%s' não mapeada no Dicionário.",
+                                nomeLimpo, c.getLinhaPlanilha(), c.getMatrizFilial());
+                        updateLog(log, erro + "\n");
+                        falhasDetalhadas.add(erro);
                         continue;
                     }
 
+                    // 2. Prepara caminhos e nomes (Novo padrão encurtado com CNPJ do Cliente)
+                    String compFormatada = c.getCompetencia().replace("/", ".");
                     String subPastaTipo = ehServico ? "SERVIÇO" : "VIGILÂNCIA";
-                    String caminhoFinalDestino = drive + File.separator + nomeLimpo +
-                            File.separator + c.getCompetencia() +
+                    String cnpjCliente = c.getCnpjApenasNumeros();
+
+                    String pastaDestino = drive + File.separator + nomeLimpo +
+                            File.separator + compFormatada +
                             File.separator + subPastaTipo;
 
-                    String resultado = ProcessadorPDF.extrairPorCnpj(c, cnpjGocil, pdfMestre, caminhoFinalDestino);
+                    String prefixo = ehServico ? "Serv" : "Vig";
+
+                    // --- EDIÇÃO SOLICITADA: Retirado espaços e adicionado CNPJ do cliente ---
+                    String nomeArquivo = String.format("%s. Relatório FGTS-%s-%s-%s.pdf",
+                            prefixo,
+                            c.getMatrizFilial().toUpperCase().replace(" ", ""), // Remove espaços do nome da filial também
+                            cnpjCliente,
+                            compFormatada);
+
+                    // 3. Executa a extração das páginas do PDF
+                    String resultado = ProcessadorPDF.extrairPorCnpj(c, cnpjGocil, pdfMestre, pastaDestino, nomeArquivo);
 
                     if (resultado.equals("OK")) {
+                        // 4. Busca e copia a Guia Mestre (comprovante de pagamento)
                         boolean ehBahia = c.getMatrizFilial().toUpperCase().contains("BAHIA");
-                        String termo = ehServico ? "SERV" : "VIG";
-                        String guia = localizarGuia(pastaMestres, termo, ehBahia ? "BA" : "");
+                        String guia = localizarGuia(pastaMestres, ehServico ? "SERV" : "VIG", ehBahia ? "BA" : "");
 
                         if (guia != null) {
-                            GerenciadorArquivos.copiarArquivo(guia, caminhoFinalDestino);
+                            GerenciadorArquivos.copiarArquivo(guia, pastaDestino);
                         }
 
-                        log.append("✅ " + nomeLimpo + " [" + c.getMatrizFilial() + "] - Processado.\n");
+                        updateLog(log, "✅ " + nomeLimpo + " - OK.\n");
                         contadorSucessos++;
                     } else {
-                        log.append("❌ " + nomeLimpo + " [" + c.getMatrizFilial() + "] - " + resultado + "\n");
-                        falhasDetalhadas.add(nomeLimpo + " [" + c.getMatrizFilial() + "] -> " + resultado);
+                        String erro = String.format("❌ %s (Linha %d): %s", nomeLimpo, c.getLinhaPlanilha(), resultado);
+                        updateLog(log, erro + "\n");
+                        falhasDetalhadas.add(erro);
                     }
 
                 } catch (Exception ex) {
-                    falhasDetalhadas.add(c.getNome() + " -> ERRO: " + ex.getMessage());
+                    String erro = "🚨 Erro em " + c.getNome() + " (Linha " + c.getLinhaPlanilha() + "): " + ex.getMessage();
+                    updateLog(log, erro + "\n");
+                    falhasDetalhadas.add(erro);
                 }
             }
 
-            // --- RELATÓRIO FINAL ---
-            log.append("\n" + "=".repeat(40) + "\n");
-            log.append("       RESUMO DA EXECUÇÃO\n");
-            log.append("=".repeat(40) + "\n");
-            log.append(String.format("✅ SUCESSOS: %d\n", contadorSucessos));
-            log.append(String.format("❌ FALHAS:   %d\n", falhasDetalhadas.size()));
-            log.append("=".repeat(40) + "\n");
-
-            if (!falhasDetalhadas.isEmpty()) {
-                log.append("\nDETALHAMENTO DAS FALHAS:\n");
-                for (String falha : falhasDetalhadas) {
-                    log.append("• " + falha + "\n");
-                }
-                log.append("=".repeat(40) + "\n");
-            }
+            exibirResumoFinal(log, contadorSucessos, falhasDetalhadas);
 
         } catch (Exception e) {
-            log.append("🚨 ERRO CRÍTICO: " + e.getMessage() + "\n");
+            updateLog(log, "🚨 ERRO CRÍTICO AO LER PLANILHA: " + e.getMessage() + "\n");
+        }
+    }
+
+    private static void exibirResumoFinal(TextArea log, int sucessos, List<String> falhas) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n").append("=".repeat(60)).append("\n");
+        sb.append("📊 RELATÓRIO FINAL DE PROCESSAMENTO\n");
+        sb.append("✅ SUCESSOS: ").append(sucessos).append("\n");
+        sb.append("❌ FALHAS: ").append(falhas.size()).append("\n");
+        sb.append("=".repeat(60)).append("\n");
+
+        if (!falhas.isEmpty()) {
+            sb.append("⚠️ DETALHAMENTO DOS ERROS:\n\n");
+            for (String f : falhas) {
+                sb.append(f).append("\n");
+            }
+            sb.append("=".repeat(60)).append("\n");
+        }
+
+        updateLog(log, sb.toString());
+    }
+
+    private static void updateLog(TextArea log, String msg) {
+        if (log != null) {
+            Platform.runLater(() -> {
+                log.appendText(msg);
+                log.setScrollTop(Double.MAX_VALUE);
+            });
         }
     }
 
     private static String localizarGuia(File pasta, String tipo, String estado) {
+        if (pasta == null || !pasta.exists()) return null;
         File[] files = pasta.listFiles();
         if (files == null) return null;
+
         for (File f : files) {
             String n = f.getName().toUpperCase();
             if (n.contains("GUIA") && n.contains(tipo)) {
