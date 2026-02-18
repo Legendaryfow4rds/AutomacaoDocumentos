@@ -1,5 +1,6 @@
 package BancadaDeTestes;
 
+import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import java.io.File;
@@ -7,7 +8,7 @@ import java.io.File;
 public class ProcessadorPDF {
 
     /**
-     * Localiza as páginas de um cliente específico dentro do PDF mestre e salva em um novo arquivo.
+     * Localiza as páginas de um cliente específico dentro do PDF mestre e salva num novo arquivo.
      * @return "OK" em caso de sucesso ou uma mensagem descritiva do erro.
      */
     public static String extrairPorCnpj(ClienteDTO cliente, String cnpjGocil, String caminhoPdfBase, String pastaDestino, String nomeArquivo) {
@@ -18,8 +19,8 @@ public class ProcessadorPDF {
             return "ERRO: O PDF mestre não foi encontrado no caminho especificado.";
         }
 
-        // try-with-resources: Garante que os arquivos sejam fechados mesmo em caso de erro
-        try (PDDocument docBase = PDDocument.load(fileBase);
+        // CORREÇÃO v3.0: Uso da classe Loader.loadPDF em vez de PDDocument.loader
+        try (PDDocument docBase = Loader.loadPDF(fileBase);
              PDDocument novoDoc = new PDDocument()) {
 
             PDFTextStripper stripper = new PDFTextStripper();
@@ -34,7 +35,9 @@ public class ProcessadorPDF {
                 stripper.setEndPage(p + 1);
 
                 String textoPagina = stripper.getText(docBase);
+
                 // Limpa o texto para facilitar a comparação de números
+                // Removemos pontos, traços e barras (DicionarioFiliais já entrega apenas números)
                 String numerosPagina = textoPagina.replaceAll("[^0-9]", "");
 
                 // CRITÉRIO DE INÍCIO: A página deve conter o CNPJ da Gocil E o CNPJ do Cliente
@@ -47,7 +50,6 @@ public class ProcessadorPDF {
                     novoDoc.importPage(docBase.getPage(p));
 
                     // CRITÉRIO DE FIM: O relatório do FGTS termina na linha "TOTAL DO TOMADOR"
-                    // Removemos espaços para evitar erros de leitura ("TOTALDOTOMADOR")
                     if (textoPagina.toUpperCase().replaceAll("\\s", "").contains("TOTALDOTOMADOR")) {
                         encontrouFim = true;
                         break;
@@ -56,13 +58,13 @@ public class ProcessadorPDF {
             }
 
             if (encontrouFim) {
-                // Cria a estrutura de pastas se não existir
+                // Cria a estrutura de pastas se não existir (Drive > Cliente > Comp > SERVIÇO/VIGILÂNCIA)
                 File pasta = new File(pastaDestino);
                 if (!pasta.exists()) {
                     pasta.mkdirs();
                 }
 
-                // Salva o novo arquivo PDF recortado
+                // Salva o novo arquivo PDF recortado conforme o padrão Carbon Executive
                 File arquivoSalvo = new File(pasta, nomeArquivo);
                 novoDoc.save(arquivoSalvo);
                 return "OK";
@@ -71,6 +73,7 @@ public class ProcessadorPDF {
             }
 
         } catch (Exception e) {
+            e.printStackTrace(); // Log no console para debug técnico
             return "ERRO TÉCNICO: " + e.getMessage();
         }
     }
