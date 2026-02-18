@@ -1,0 +1,44 @@
+/* Container Raiz */
+.menu-container {
+    -fx-background-color: #121212; /* Preto Carbono */
+    -fx-alignment: TOP_CENTER;
+    -fx-padding: 60 0 0 0;
+}
+
+/* Título Gold Executive */
+.menu-titulo {
+    -fx-font-size: 34px;
+    -fx-font-family: "Segoe UI Bold", "Arial";
+    -fx-font-weight: bold;
+    -fx-text-fill: #D4AF37; /* Dourado Metálico */
+    -fx-effect: dropshadow(gaussian, rgba(212,175,55,0.3), 15, 0.5, 0, 0);
+    -fx-padding: 0 0 50 0;
+}
+
+.vbox-botoes {
+    -fx-alignment: CENTER;
+    -fx-spacing: 25;
+}
+
+/* Botão Estilo Placa Executiva */
+.btn-menu {
+    -fx-background-color: #1a1a1a;
+    -fx-border-color: #333333;
+    -fx-border-width: 1;
+    -fx-text-fill: #C0C0C0; /* Prata fosco para o texto */
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-min-width: 450px;
+    -fx-min-height: 100px;
+    -fx-background-radius: 2;
+    -fx-border-radius: 2;
+    -fx-cursor: hand;
+}
+
+.btn-menu:hover {
+    -fx-border-color: #D4AF37;   /* Borda brilha em ouro */
+    -fx-text-fill: #D4AF37;      /* Texto assume o ouro */
+    -fx-background-color: #1f1f1f;
+    -fx-scale-x: 1.01;           /* Movimento mais sutil e elegante */
+    -fx-scale-y: 1.01;
+}
