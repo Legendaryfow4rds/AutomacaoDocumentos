@@ -1,0 +1,52 @@
+.root {
+    -fx-background-color: #121212;
+}
+
+.label-industrial {
+    -fx-text-fill: #D4AF37; /* Rótulos em Dourado */
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+}
+
+.input-industrial {
+    -fx-background-color: #1a1a1a;
+    -fx-text-fill: #FFFFFF;
+    -fx-border-color: #333333;
+    -fx-border-radius: 0; /* Bordas retas são mais executivas */
+}
+
+.input-industrial:focused {
+    -fx-border-color: #D4AF37;
+}
+
+/* Log com texto em Âmbar/Ouro suave para não cansar */
+.text-area-industrial .content {
+    -fx-background-color: #000000 !important;
+}
+
+.text-area-industrial .text {
+    -fx-fill: #FFD700 !important; /* Gold Puro */
+}
+
+/* Botão de Ação Iniciar - O destaque do painel */
+.btn-acao-iniciar {
+    -fx-background-color: #D4AF37;
+    -fx-text-fill: #000000; /* Texto preto sobre o fundo dourado */
+    -fx-font-weight: bold;
+    -fx-font-size: 20px;
+    -fx-background-radius: 0;
+}
+
+.btn-acao-iniciar:hover {
+    -fx-background-color: #F1C40F; /* Dourado mais brilhante */
+}
+
+.btn-procurar {
+    -fx-background-color: #333333;
+    -fx-text-fill: #D4AF37;
+}
+
+.btn-voltar {
+    -fx-text-fill: #D4AF37;
+    -fx-border-color: #D4AF37;
+}
