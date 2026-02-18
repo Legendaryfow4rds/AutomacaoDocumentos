@@ -4,12 +4,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class DicionarioFiliais {
-    // Mapa que associa a chave (FILIAL_TIPO) ao CNPJ correspondente
     private static final Map<String, String> mapeamento = new HashMap<>();
 
     static {
-        // --- GRUPO: SERVIÇO ---
-        mapeamento.put("SÃO PAULO_VIG", "50844182000155");
+        // SERVIÇO (Baseado na imagem_15a8b5.png)
+        mapeamento.put("SÃO PAULO_SERV", "00146889000110");
         mapeamento.put("BAURU_SERV", "00146889000705");
         mapeamento.put("CAMPINAS_SERV", "00146889000624");
         mapeamento.put("SANTOS_SERV", "00146889000977");
@@ -27,8 +26,8 @@ public class DicionarioFiliais {
         mapeamento.put("CEARÁ_SERV", "00146889002163");
         mapeamento.put("MATO GROSSO DO SUL_SERV", "00146889001949");
 
-        // --- GRUPO: VIGILÂNCIA ---
-        mapeamento.put("SÃO PAULO_SERV", "00146889000110");
+        // VIGILÂNCIA (Baseado na image_15a0f5.png)
+        mapeamento.put("SÃO PAULO_VIG", "50844182000155");
         mapeamento.put("BAURU_VIG", "50844182000236");
         mapeamento.put("CAMPINAS_VIG", "50844182001208");
         mapeamento.put("SANTOS_VIG", "50844182001631");
@@ -49,14 +48,8 @@ public class DicionarioFiliais {
         mapeamento.put("BAHIA_VIG", "06261891000116"); // Gocil Nordeste Vigilância
     }
 
-    /**
-     * Retorna o CNPJ formatado apenas com número baseado nos dados da planilha.
-     */
     public static String obterCnpjCorreto(String filial, String tipo) {
-        // Normaliza a chave para evitar erros de digitação (espaços e maiúsculas)
         String chave = filial.toUpperCase().trim() + "_" + (tipo.toUpperCase().contains("SERV") ? "SERV" : "VIG");
-
-        // Retorna o CNPJ ou uma String vazia caso a filial não exista no mapa
         return mapeamento.getOrDefault(chave, "");
     }
 }
