@@ -8,6 +8,7 @@ public class LeitorPlanilha {
 
     /**
      * Lê a planilha de entregas e converte cada linha válida num objeto ClienteDTO.
+     * Focando nas Colunas F (Filial) e I (CNPJ Cliente) para Dupla Autenticação.
      */
     public static List<ClienteDTO> lerDados(Workbook workbook) {
         List<ClienteDTO> listaClientes = new ArrayList<>();
@@ -28,23 +29,33 @@ public class LeitorPlanilha {
                 continue;
             }
 
-            // Coluna A (Índice 0) - Competência
+            // Coluna A (Índice 0) - Competência (Se vazio, pula a linha)
             String compRaw = formatter.formatCellValue(row.getCell(0)).trim();
             if (compRaw.isEmpty()) continue;
 
             ClienteDTO cliente = new ClienteDTO();
 
-            // Mapeamento das colunas conforme sua estrutura atual:
-            cliente.setCompetencia(formatarData(compRaw));              // Coluna A
-            cliente.setMatrizFilial(formatter.formatCellValue(row.getCell(5)).trim()); // Coluna F
-            cliente.setNome(formatter.formatCellValue(row.getCell(6)).trim());         // Coluna G
-            cliente.setTipo(formatter.formatCellValue(row.getCell(7)).trim());         // Coluna H
-            cliente.setCnpj(formatter.formatCellValue(row.getCell(8)).trim());         // Coluna I
+            // === MAPEAMENTO DE COLUNAS ATUALIZADO ===
 
-            // Guarda o número da linha real (i + 1) para o relatório de erros
+            // Coluna A (0): Competência (MM.AAAA)
+            cliente.setCompetencia(formatarData(compRaw));
+
+            // Coluna F (5): Matriz/Filial -> Usado para buscar o CNPJ da GOCIL no Dicionário
+            cliente.setMatrizFilial(formatter.formatCellValue(row.getCell(5)).trim());
+
+            // Coluna G (6): Nome do Cliente
+            cliente.setNome(formatter.formatCellValue(row.getCell(6)).trim());
+
+            // Coluna H (7): Tipo de Serviço (VIG ou SERV)
+            cliente.setTipo(formatter.formatCellValue(row.getCell(7)).trim());
+
+            // Coluna I (8): CNPJ do Cliente -> Usado para localizar o cliente dentro do PDF
+            cliente.setCnpj(formatter.formatCellValue(row.getCell(8)).trim());
+
+            // Guarda a linha real para que o robô saiba onde escrever o resultado depois na Coluna Q
             cliente.setLinhaPlanilha(i + 1);
 
-            // Validação básica: Só adiciona se tiver Nome e CNPJ
+            // Validação: Adiciona apenas se tiver dados essenciais para a busca
             if (!cliente.getNome().isEmpty() && !cliente.getCnpj().isEmpty()) {
                 listaClientes.add(cliente);
             }
@@ -53,7 +64,7 @@ public class LeitorPlanilha {
     }
 
     /**
-     * Padroniza a data para usar pontos (MM.AAAA) para evitar erros em nomes de pastas.
+     * Padroniza a data para MM.AAAA
      */
     private static String formatarData(String dataRaw) {
         return dataRaw.replace("/", ".").replace("-", ".");
