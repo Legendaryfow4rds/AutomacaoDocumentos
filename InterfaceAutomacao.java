@@ -24,62 +24,73 @@ public class InterfaceAutomacaoFX extends Application {
     public void start(Stage stage) {
         stage.setTitle("Gocil - Extrator FGTS Digital");
 
-        // --- LAYOUT PRINCIPAL ---
-        VBox root = new VBox(20);
-        root.setPadding(new Insets(30));
-        root.getStyleClass().add("root"); // Define a classe para o CSS
+        BorderPane mainLayout = new BorderPane();
+        mainLayout.getStyleClass().add("menu-container");
+        mainLayout.setPadding(new Insets(20));
 
-        // --- PAINEL DE ENTRADAS ---
+        // CABEÇALHO
+        Button btnVoltar = new Button("⬅ VOLTAR");
+        btnVoltar.getStyleClass().add("btn-voltar");
+        btnVoltar.setOnAction(e -> {
+            new MenuPrincipalFX().start(new Stage());
+            stage.close();
+        });
+        mainLayout.setTop(new HBox(btnVoltar));
+
+        // CONTEÚDO CENTRAL
+        VBox centerBox = new VBox(20);
+        centerBox.setAlignment(Pos.TOP_LEFT);
+        centerBox.setPadding(new Insets(20, 10, 10, 10));
+
         GridPane grid = new GridPane();
         grid.setHgap(15);
         grid.setVgap(15);
-        grid.setAlignment(Pos.CENTER);
+        grid.setAlignment(Pos.TOP_LEFT);
 
         txtPlanilha = criarLinhaInput(grid, "Planilha Excel:", 0, false);
         txtPdfVig   = criarLinhaInput(grid, "PDF Vigilância:", 1, false);
         txtPdfServ  = criarLinhaInput(grid, "PDF Serviço:", 2, false);
         txtDrive    = criarLinhaInput(grid, "Pasta do Drive:", 3, true);
 
-        // --- ÁREA DE LOG ---
-        Label lblLog = new Label("Status do Processamento:");
+        Label lblLog = new Label("CONSOLE DE OPERAÇÃO");
+        lblLog.getStyleClass().add("menu-titulo-pequeno");
 
         areaLog = new TextArea();
         areaLog.setEditable(false);
         areaLog.setPrefHeight(350);
+        areaLog.setStyle("-fx-text-fill: #D4AF37;");
+        areaLog.getStyleClass().add("text-area-industrial");
 
-        VBox logBox = new VBox(10, lblLog, areaLog);
+        // BOTÕES DE AÇÃO LADO A LADO
+        btnIniciar = new Button("INICIAR PROCESSAMENTO");
+        btnIniciar.getStyleClass().add("btn-acao-iniciar");
+        btnIniciar.setPrefHeight(80);
+        btnIniciar.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(btnIniciar, Priority.ALWAYS);
+        btnIniciar.setOnAction(e -> dispararProcesso());
 
-        // --- BOTÕES DE AÇÃO ---
-        HBox boxBotoes = new HBox(25);
+        btnParar = new Button("PARAR AGORA");
+        btnParar.getStyleClass().add("btn-acao-parar");
+        btnParar.setPrefHeight(80);
+        btnParar.setMaxWidth(Double.MAX_VALUE);
+        btnParar.setDisable(true);
+        HBox.setHgrow(btnParar, Priority.ALWAYS);
+        // Vincula o cancelamento à sua classe de lógica
+        btnParar.setOnAction(e -> AutomacaoPrincipalV9.cancelarProcesso = true);
+
+        HBox boxBotoes = new HBox(20, btnIniciar, btnParar);
         boxBotoes.setAlignment(Pos.CENTER);
 
-        btnIniciar = new Button("INICIAR PROCESSO");
-        btnIniciar.setPrefWidth(250);
-        btnIniciar.setId("btn-iniciar"); // Referência para o CSS
+        centerBox.getChildren().addAll(grid, lblLog, areaLog, boxBotoes);
+        mainLayout.setCenter(centerBox);
 
-        btnParar = new Button("PARAR PROCESSO");
-        btnParar.setPrefWidth(250);
-        btnParar.setDisable(true);
-        btnParar.setId("btn-parar"); // Referência para o CSS
-
-        btnIniciar.setOnAction(e -> dispararProcesso());
-        btnParar.setOnAction(e -> pararProcesso());
-
-        boxBotoes.getChildren().addAll(btnIniciar, btnParar);
-
-        root.getChildren().addAll(grid, logBox, boxBotoes);
-
-        // Carrega configurações salvas
         carregarConfiguracoes();
 
-        // --- SCENE E CSS ---
-        Scene scene = new Scene(root, 820, 730);
+        Scene scene = new Scene(mainLayout, 800, 600);
         try {
-            // Tenta carregar o CSS da pasta de resources
-            String css = getClass().getResource("/style.css").toExternalForm();
-            scene.getStylesheets().add(css);
+            scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
         } catch (Exception e) {
-            System.out.println("⚠️ Aviso: Arquivo estilo.css não encontrado em src/main/resources.");
+            System.err.println("Erro ao carregar style.css");
         }
 
         stage.setScene(scene);
@@ -88,104 +99,89 @@ public class InterfaceAutomacaoFX extends Application {
 
     private TextField criarLinhaInput(GridPane grid, String rotulo, int linha, boolean apenasPasta) {
         Label lbl = new Label(rotulo);
-        lbl.setPrefWidth(120);
+        lbl.getStyleClass().add("label-industrial");
+        lbl.setMinWidth(150);
 
         TextField campo = new TextField();
-        campo.setPrefWidth(600);
+        campo.getStyleClass().add("input-industrial");
+        campo.setPrefWidth(700);
+        GridPane.setHgrow(campo, Priority.ALWAYS);
 
         Button btn = new Button("Procurar");
-        btn.setPrefWidth(100);
-        btn.setOnAction(e -> acaoProcurar(campo, apenasPasta));
+        btn.getStyleClass().add("btn-procurar");
+        btn.setMinWidth(100);
+
+        btn.setOnAction(e -> {
+            File selecionado = apenasPasta ? new DirectoryChooser().showDialog(null) : new FileChooser().showOpenDialog(null);
+            if (selecionado != null) {
+                campo.setText(selecionado.getAbsolutePath());
+                salvarConfiguracoes();
+            }
+        });
 
         grid.add(lbl, 0, linha);
         grid.add(campo, 1, linha);
         grid.add(btn, 2, linha);
-
         return campo;
     }
 
-    private void acaoProcurar(TextField campo, boolean apenasPasta) {
-        File selecionado;
-        if (apenasPasta) {
-            DirectoryChooser dc = new DirectoryChooser();
-            selecionado = dc.showDialog(null);
-        } else {
-            FileChooser fc = new FileChooser();
-            selecionado = fc.showOpenDialog(null);
-        }
-
-        if (selecionado != null) {
-            campo.setText(selecionado.getAbsolutePath());
-            salvarConfiguracoes();
-        }
-    }
+    // --- RESTAURAÇÃO DA LÓGICA DE EXECUÇÃO ---
 
     private void dispararProcesso() {
-        if (txtPlanilha.getText().isEmpty() || txtDrive.getText().isEmpty()) {
-            exibirAlerta("Campos Vazios", "Selecione a planilha e o destino.");
-            return;
-        }
-
         salvarConfiguracoes();
         btnIniciar.setDisable(true);
         btnParar.setDisable(false);
         areaLog.clear();
+        AutomacaoPrincipalV9.cancelarProcesso = false; // Reseta o cancelamento
 
-        Thread thread = new Thread(() -> {
+        // Thread para não travar a interface visual enquanto a automação roda
+        new Thread(() -> {
             try {
-                AutomacaoPrincipalV7.executarComParametros(
-                        txtPlanilha.getText(), txtPdfVig.getText(),
-                        txtPdfServ.getText(), txtDrive.getText(), areaLog
+                AutomacaoPrincipalV9.executarComParametros(
+                        txtPlanilha.getText(),
+                        txtPdfVig.getText(),
+                        txtPdfServ.getText(),
+                        txtDrive.getText(),
+                        areaLog
                 );
+            } catch (Exception e) {
+                Platform.runLater(() -> areaLog.appendText("\nErro crítico: " + e.getMessage()));
             } finally {
                 Platform.runLater(() -> {
                     btnIniciar.setDisable(false);
                     btnParar.setDisable(true);
                 });
             }
-        });
-        thread.setDaemon(true);
-        thread.start();
-    }
-
-    private void pararProcesso() {
-        AutomacaoPrincipalV7.cancelarProcesso = true;
-        btnParar.setDisable(true);
+        }).start();
     }
 
     private void salvarConfiguracoes() {
         Properties prop = new Properties();
-        prop.setProperty("planilha", txtPlanilha.getText().trim());
-        prop.setProperty("pdfVig", txtPdfVig.getText().trim());
-        prop.setProperty("pdfServ", txtPdfServ.getText().trim());
-        prop.setProperty("drive", txtDrive.getText().trim());
-
-        try (FileOutputStream out = new FileOutputStream(CONFIG_FILE)) {
+        prop.setProperty("planilha", txtPlanilha.getText());
+        prop.setProperty("pdfVig", txtPdfVig.getText());
+        prop.setProperty("pdfServ", txtPdfServ.getText());
+        prop.setProperty("drive", txtDrive.getText());
+        try (OutputStream out = new FileOutputStream(CONFIG_FILE)) {
             prop.store(out, null);
-        } catch (IOException e) { e.printStackTrace(); }
+        } catch (IOException e) {
+            System.err.println("Erro ao salvar configurações.");
+        }
     }
 
     private void carregarConfiguracoes() {
         File f = new File(CONFIG_FILE);
         if (!f.exists()) return;
         Properties prop = new Properties();
-        try (FileInputStream in = new FileInputStream(f)) {
+        try (InputStream in = new FileInputStream(f)) {
             prop.load(in);
             txtPlanilha.setText(prop.getProperty("planilha", ""));
             txtPdfVig.setText(prop.getProperty("pdfVig", ""));
             txtPdfServ.setText(prop.getProperty("pdfServ", ""));
             txtDrive.setText(prop.getProperty("drive", ""));
-        } catch (IOException e) { e.printStackTrace(); }
+        } catch (IOException e) {
+            System.err.println("Erro ao carregar configurações.");
+        }
     }
 
-    private void exibirAlerta(String titulo, String msg) {
-        Alert alert = new Alert(Alert.AlertType.WARNING);
-        alert.setTitle(titulo);
-        alert.setContentText(msg);
-        alert.showAndWait();
-    }
-
-    public static void main(String[] args) {
-        launch(args);
-    }
+    public static void main(String[] args) { launch(args); }
 }
