@@ -17,6 +17,7 @@ public class MenuPrincipalFX extends Application {
         Label titulo = new Label("AUTOMAÇÃO DE PROCESSOS");
         titulo.getStyleClass().add("menu-titulo");
 
+        // MOTOR 1: Extrator FGTS
         Button btnFGTS = new Button("Extrator FGTS digital");
         btnFGTS.getStyleClass().add("btn-menu");
         btnFGTS.setOnAction(e -> {
@@ -24,6 +25,7 @@ public class MenuPrincipalFX extends Application {
             primaryStage.close();
         });
 
+        // MOTOR 2: Cálculo de Funcionários
         Button btnCalculo = new Button("Funcionários por cliente");
         btnCalculo.getStyleClass().add("btn-menu");
         btnCalculo.setOnAction(e -> {
@@ -31,14 +33,24 @@ public class MenuPrincipalFX extends Application {
             primaryStage.close();
         });
 
-        VBox boxBotoes = new VBox(30, btnFGTS, btnCalculo);
+        // MOTOR 3: NOVO - Separador de Comprovantes (Motor Python migrado)
+        Button btnComprovantes = new Button("Separador de Comprovantes");
+        btnComprovantes.getStyleClass().add("btn-menu");
+        btnComprovantes.setOnAction(e -> {
+            new InterfaceComprovantesFX().start(new Stage());
+            primaryStage.close();
+        });
+
+        // Adicionando o novo botão ao box (Mantendo o espaçamento de 30)
+        VBox boxBotoes = new VBox(30, btnFGTS, btnCalculo, btnComprovantes);
         boxBotoes.setAlignment(Pos.CENTER);
 
-        VBox root = new VBox(titulo, boxBotoes);
+        VBox root = new VBox(50, titulo, boxBotoes); // Aumentei o espaçamento entre título e botões
         root.getStyleClass().add("menu-container");
         root.setAlignment(Pos.CENTER);
 
-        Scene scene = new Scene(root, 570, 500);
+        // Ajustei levemente a altura para 550 para acomodar o novo botão com folga
+        Scene scene = new Scene(root, 570, 550);
         try {
             scene.getStylesheets().add(getClass().getResource("/estilo.css").toExternalForm());
         } catch (Exception e) {
@@ -46,6 +58,7 @@ public class MenuPrincipalFX extends Application {
         }
 
         primaryStage.setScene(scene);
+        primaryStage.setResizable(false); // Evita distorção do layout Carbon
         primaryStage.show();
     }
 
