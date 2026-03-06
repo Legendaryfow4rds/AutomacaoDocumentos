@@ -86,7 +86,7 @@ public class InterfaceAutomacaoFX extends Application {
 
         carregarConfiguracoes();
 
-        Scene scene = new Scene(mainLayout, 800, 600);
+        Scene scene = new Scene(mainLayout, 900, 780);
         try {
             scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
         } catch (Exception e) {
