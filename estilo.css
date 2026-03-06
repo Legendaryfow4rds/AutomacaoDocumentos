@@ -28,8 +28,8 @@
     -fx-text-fill: #C0C0C0; /* Prata fosco para o texto */
     -fx-font-size: 18px;
     -fx-font-weight: bold;
-    -fx-min-width: 450px;
-    -fx-min-height: 100px;
+    -fx-min-width: 400px;
+    -fx-min-height: 65px;
     -fx-background-radius: 2;
     -fx-border-radius: 2;
     -fx-cursor: hand;
