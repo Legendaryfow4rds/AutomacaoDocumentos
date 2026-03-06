@@ -27,7 +27,7 @@ public class AutomacaoPrincipalV9 {
         try (FileInputStream fis = new FileInputStream(new File(planilha));
              Workbook workbook = WorkbookFactory.create(fis)) {
 
-            List<ClienteDTO> clientes = LeitorPlanilha.lerDados(workbook);
+            List<ClienteDTO> clientes = LeitorPlanilha.lerDadosEntregas(workbook);
             updateLog(log, "🚀 Iniciando Extração FGTS Digital...\n\n");
 
             for (ClienteDTO c : clientes) {
@@ -76,42 +76,34 @@ public class AutomacaoPrincipalV9 {
     }
 
     /**
-     * MOTOR 2: CÁLCULO DE FUNCIONÁRIOS (DUPLA AUTENTICAÇÃO COLUNAS F e I)
+     * MOTOR 2: CÁLCULO DE FUNCIONÁRIOS (DUPLA AUTENTICAÇÃO)
      */
     public static void executarCalculoFuncionarios(String planilha, String pdfVig, String pdfServ, TextArea log) {
         cancelarProcesso = false;
         int contadorSucessos = 0;
-        int colunaDestino = 16; // Coluna Q continua sendo o destino
+        int colunaDestino = 16;
         List<String> falhasDetalhadas = new ArrayList<>();
 
         try (FileInputStream fis = new FileInputStream(new File(planilha));
              Workbook workbook = WorkbookFactory.create(fis)) {
 
             Sheet sheet = workbook.getSheetAt(0);
+            List<ClienteDTO> clientes = LeitorPlanilha.lerDadosEntregas(workbook);
 
-            // O LeitorPlanilha DEVE estar configurado para:
-            // c.getMatrizFilial() <- Coluna F (Índice 5)
-            // c.getCnpj()         <- Coluna I (Índice 8)
-            List<ClienteDTO> clientes = LeitorPlanilha.lerDados(workbook);
-
-            updateLog(log, "🚀 Iniciando Cálculo com Dupla Autenticação (F: Filial | I: CNPJ)...\n");
+            updateLog(log, "🚀 Iniciando Cálculo com Dupla Autenticação...\n");
 
             for (ClienteDTO c : clientes) {
                 if (cancelarProcesso) break;
 
-                // 1. Pega o CNPJ da Gocil baseado na Filial escrita na Coluna F
                 String cnpjGocil = DicionarioFiliais.obterCnpjCorreto(c.getMatrizFilial(), c.getTipo());
-
-                // 2. Pega o CNPJ do cliente que veio da Coluna I
                 String cnpjAlvo = c.getCnpjApenasNumeros();
 
                 if (cnpjGocil.isEmpty()) {
-                    updateLog(log, "⚠️ Filial não reconhecida na Coluna F: " + c.getMatrizFilial() + "\n");
-                    falhasDetalhadas.add("❌ Filial Inválida (Col F): " + c.getMatrizFilial());
+                    updateLog(log, "⚠️ Filial não reconhecida: " + c.getMatrizFilial() + "\n");
+                    falhasDetalhadas.add("❌ Filial Inválida: " + c.getMatrizFilial());
                     continue;
                 }
 
-                // 3. Pesquisa com Dupla Autenticação no PDF
                 String total = BuscadorCalculoPDF.extrairTotalFuncionarios(pdfVig, cnpjAlvo, cnpjGocil);
                 if (total.equals("0")) {
                     total = BuscadorCalculoPDF.extrairTotalFuncionarios(pdfServ, cnpjAlvo, cnpjGocil);
@@ -124,15 +116,15 @@ public class AutomacaoPrincipalV9 {
 
                 if (!total.equals("0")) {
                     try {
-                        cell.setCellValue(Integer.parseInt(total.replaceAll("[^0-9]", ""))); // Limpeza extra por segurança
+                        cell.setCellValue(Integer.parseInt(total.replaceAll("[^0-9]", "")));
                     } catch (NumberFormatException e) {
-                        cell.setCellValue(total); // Se falhar o parse, grava como texto o que veio do PDF
+                        cell.setCellValue(total);
                     }
-                    updateLog(log, "✅ " + c.getNome() + " [" + c.getMatrizFilial() + "]: " + total + "\n");
+                    updateLog(log, "✅ " + c.getNome() + ": " + total + "\n");
                     contadorSucessos++;
                 } else {
                     cell.setCellValue("Sem Funcionários");
-                    falhasDetalhadas.add("⚠️ Não encontrado no PDF (CNPJ " + cnpjAlvo + " na filial " + c.getMatrizFilial() + ")");
+                    falhasDetalhadas.add("⚠️ Não encontrado: " + c.getNome());
                 }
             }
 
@@ -146,22 +138,63 @@ public class AutomacaoPrincipalV9 {
         }
     }
 
+    /**
+     * MOTOR 3: SEPARAÇÃO DE COMPROVANTES (TRI-VALIDAÇÃO E BUSCA DINÂMICA)
+     * Atualizado para suportar 2 PDFs e busca linha a linha por nome de coluna.
+     */
+    public static void executarSeparacaoComprovantes(String planilhaApoio, String pdfVig, String pdfServ, String pastaRaiz, TextArea log) {
+        cancelarProcesso = false;
+        List<String> falhasDetalhadas = new ArrayList<>();
+        int contadorSucessos = 0;
+
+        try (FileInputStream fis = new FileInputStream(new File(planilhaApoio));
+             Workbook workbook = WorkbookFactory.create(fis)) {
+
+            updateLog(log, "🚀 Iniciando Motor 3: Separação de Comprovantes...\n");
+            updateLog(log, "📊 Mapeando colunas dinamicamente (COL, NOME, CPF, TOMADOR, CNPJ)...\n");
+
+            // 1. Leitura Dinâmica da Planilha (Aba ATIVOS)
+            List<ColaboradorDTO> colaboradores = LeitorPlanilha.lerDadosAtivosDinamico(workbook);
+
+            if (colaboradores.isEmpty()) {
+                updateLog(log, "⚠️ Nenhuma linha válida encontrada na aba 'ATIVOS'.\n");
+                return;
+            }
+
+            // 2. Disparo do Processador (Este método faz a ordenação A-Z e a Tripla Validação)
+            // Ele retorna o número de sucessos para alimentarmos o relatório final
+            contadorSucessos = ProcessadorComprovantes.executar(colaboradores, pdfVig, pdfServ, pastaRaiz, log);
+
+            // 3. Relatório Final (O resumo é gerado dentro do Processador ou aqui no final)
+            if (cancelarProcesso) {
+                falhasDetalhadas.add("Processo interrompido manualmente pelo usuário.");
+            }
+
+            exibirResumoFinal(log, contadorSucessos, falhasDetalhadas);
+
+        } catch (Exception e) {
+            updateLog(log, "🚨 ERRO CRÍTICO NO MOTOR 3: " + e.getMessage() + "\n");
+            falhasDetalhadas.add("Erro na execução: " + e.getMessage());
+            exibirResumoFinal(log, 0, falhasDetalhadas);
+        }
+    }
+
     private static void exibirResumoFinal(TextArea log, int sucessos, List<String> falhas) {
         StringBuilder sb = new StringBuilder();
         sb.append("\n").append("=" .repeat(60)).append("\n");
         sb.append("         📊 RELATÓRIO FINAL DE EXECUÇÃO\n");
         sb.append("=" .repeat(60)).append("\n");
-        sb.append(String.format(" ✅ SUCESSOS: %d\n", sucessos));
-        sb.append(String.format(" ❌ FALHAS/AUSENTES: %d\n", falhas.size()));
+        sb.append(String.format(" ✅ PROCESSADOS/SUCESSOS: %d\n", sucessos));
+        sb.append(String.format(" ❌ FALHAS/PENDÊNCIAS: %d\n", falhas.size()));
         sb.append("-" .repeat(60)).append("\n");
 
         if (!falhas.isEmpty()) {
-            sb.append(" ⚠️ PENDÊNCIAS PARA VERIFICAÇÃO MANUAL:\n");
+            sb.append(" ⚠️ OBSERVAÇÕES:\n");
             for (String erro : falhas) {
                 sb.append(" -> ").append(erro).append("\n");
             }
         } else {
-            sb.append(" 🎉 PROCESSO CONCLUÍDO COM 100% DE SUCESSO!\n");
+            sb.append(" 🎉 PROCESSO CONCLUÍDO COM SUCESSO!\n");
         }
         sb.append("=" .repeat(60)).append("\n");
 
